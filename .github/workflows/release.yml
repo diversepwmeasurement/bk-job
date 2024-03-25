@@ -1,81 +1,102 @@
-name: Tag Realse
-on:
-  push:
-    tags:
-      - 'v*'
-
 jobs:
   build:
     name: Build whole project and release
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up variables
-        id: variables
-        run: |
-          tag="$(basename $GITHUB_REF)"
-          bkjobVersion=${tag##v}
-          echo "::set-output name=tag::${tag}"
-          echo "::set-output name=bkjobVersion::${bkjobVersion}"
-      - name: init mysql
-        run: |
-          sudo /etc/init.d/mysql start
-          export MYSQL_PWD=root
-          for i in */*.sql;do echo $i;mysql -h localhost -uroot < $i;done
-        working-directory: support-files/sql
-      - name: Set up JDK 1.8
-        uses: actions/setup-java@v1
-        with:
-          java-version: 1.8
-      - name: Cache Gradle
-        uses: actions/cache@v1
-        with:
-          path: ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-      - name: Gradle Build Backend
-        working-directory: src/backend
-        run: ./gradlew clean build -DbkjobVersion=${{ steps.variables.outputs.bkjobVersion }} -DmysqlURL=127.0.0.1:3306 -DmysqlUser=root -DmysqlPasswd=root -DmavenRepoUrl="https://maven.aliyun.com/nexus/content/groups/public/"
+    - continue-on-error: true
+      uses: actions/checkout@v2
+    - continue-on-error: true
+      id: variables
+      name: Set up variables
+      run: 'tag="$(basename $GITHUB_REF)"
 
-      - name: Npm Build Frontend
-        run: |
-          echo "npm version=$(npm -v)"
-          export JOB_VERSION=${{ steps.variables.outputs.bkjobVersion }}
-          npm i --legacy-peer-deps && npm run build
-          mkdir -p release/job/frontend
-          cp -r dist/* release/job/frontend
-        working-directory: src/frontend
+        bkjobVersion=${tag##v}
 
-      - name: Build VersionLogs
-        run: python genBundledVersionLog.py
-        working-directory: versionLogs
+        echo "::set-output name=tag::${tag}"
 
-      - name: Create artifact - make package
-        id: create_artifact
-        run: |
-          echo ${{ steps.variables.outputs.bkjobVersion }} > ./VERSION
-          chmod 755 ./package.sh
-          ./package.sh -m all -v ${{ steps.variables.outputs.bkjobVersion }}
-        working-directory: ./
+        echo "::set-output name=bkjobVersion::${bkjobVersion}"
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: bk-job ${{ github.ref }}
-          draft: true
-          prerelease: true
+        '
+    - continue-on-error: true
+      name: init mysql
+      run: 'sudo /etc/init.d/mysql start
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release/job_ce-${{ steps.variables.outputs.bkjobVersion }}.tgz
-          asset_name: job_ce-${{ steps.variables.outputs.bkjobVersion }}.tgz
-          asset_content_type: application/gzip
+        export MYSQL_PWD=root
+
+        for i in */*.sql;do echo $i;mysql -h localhost -uroot < $i;done
+
+        '
+      working-directory: support-files/sql
+    - continue-on-error: true
+      name: Set up JDK 1.8
+      uses: actions/setup-java@v1
+      with:
+        java-version: 1.8
+    - continue-on-error: true
+      name: Cache Gradle
+      uses: actions/cache@v1
+      with:
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+        path: ~/.gradle/caches
+        restore-keys: '${{ runner.os }}-gradle-
+
+          '
+    - continue-on-error: true
+      name: Gradle Build Backend
+      run: ./gradlew clean build -DbkjobVersion=${{ steps.variables.outputs.bkjobVersion
+        }} -DmysqlURL=127.0.0.1:3306 -DmysqlUser=root -DmysqlPasswd=root -DmavenRepoUrl="https://maven.aliyun.com/nexus/content/groups/public/"
+      working-directory: src/backend
+    - continue-on-error: true
+      name: Npm Build Frontend
+      run: 'echo "npm version=$(npm -v)"
+
+        export JOB_VERSION=${{ steps.variables.outputs.bkjobVersion }}
+
+        npm i --legacy-peer-deps && npm run build
+
+        mkdir -p release/job/frontend
+
+        cp -r dist/* release/job/frontend
+
+        '
+      working-directory: src/frontend
+    - continue-on-error: true
+      name: Build VersionLogs
+      run: python genBundledVersionLog.py
+      working-directory: versionLogs
+    - continue-on-error: true
+      id: create_artifact
+      name: Create artifact - make package
+      run: 'echo ${{ steps.variables.outputs.bkjobVersion }} > ./VERSION
+
+        chmod 755 ./package.sh
+
+        ./package.sh -m all -v ${{ steps.variables.outputs.bkjobVersion }}
+
+        '
+      working-directory: ./
+    - continue-on-error: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      id: create_release
+      name: Create Release
+      uses: actions/create-release@v1
+      with:
+        draft: true
+        prerelease: true
+        release_name: bk-job ${{ github.ref }}
+        tag_name: ${{ github.ref }}
+    - continue-on-error: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      name: Upload Release Asset
+      uses: actions/upload-release-asset@v1
+      with:
+        asset_content_type: application/gzip
+        asset_name: job_ce-${{ steps.variables.outputs.bkjobVersion }}.tgz
+        asset_path: ./release/job_ce-${{ steps.variables.outputs.bkjobVersion }}.tgz
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+name: Tag Realse
+on:
+  repository_dispatch:
+    types: trigger-ga___release.yml
